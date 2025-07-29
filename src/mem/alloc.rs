@@ -6,6 +6,8 @@ use talc::{ErrOnOom, Talc, Talck};
 use super::{PAGE_SIZE, addr::VirtAddr};
 use crate::mem::addr::PhysAddr;
 
+pub static PAGE_ALLOCATOR: Mutex<BiBuddy> = Mutex::new(BiBuddy::new());
+
 #[global_allocator]
 pub static HEAP_ALLOCATOR: Talck<Mutex<()>, ErrOnOom> = Talck::new(Talc::new(ErrOnOom));
 

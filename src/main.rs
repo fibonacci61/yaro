@@ -19,7 +19,7 @@ use crate::{
     io::serial::print,
     mem::{
         addr::{PhysAddr, VirtAddr},
-        alloc::{BiBuddy, Block, HEAP_ALLOCATOR},
+        alloc::{BiBuddy, Block, HEAP_ALLOCATOR, PAGE_ALLOCATOR},
         paging::{
             entry::{Entry, EntryFlags},
             table::{ENTRY_COUNT, RawTable},
@@ -187,16 +187,14 @@ unsafe extern "C" fn kmain(_hart_id: usize, _dtb_addr: usize) -> ! {
     unsafe {
         zero_bss();
         int::set_kernel_entry();
-    }
 
-    let mut alloc = BiBuddy::new();
+        let mut page_alloc = PAGE_ALLOCATOR.lock();
 
-    unsafe {
         let pheap_block = Block::from_range(PHYS_PHEAP, PHYS_PHEAP + PHEAP_LEN).unwrap();
-        alloc.claim(pheap_block);
+        page_alloc.claim(pheap_block);
 
         const HEAP_ORDER: usize = 3;
-        let heap_allocation = alloc.alloc(HEAP_ORDER).unwrap();
+        let heap_allocation = page_alloc.alloc(HEAP_ORDER).unwrap();
         HEAP_ALLOCATOR
             .lock()
             .claim(Span::new(
