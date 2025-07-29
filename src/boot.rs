@@ -14,9 +14,11 @@ use crate::{
 pub const PHYS_PHEAP: PhysAddr = PhysAddr(0x83000000);
 pub const PHEAP_LEN: usize = 0x200000;
 
-const PHYS_RAM_START: PhysAddr = PhysAddr(0x80000000);
+pub const PHYS_RAM_START: PhysAddr = PhysAddr(0x80000000);
+pub const VIRT_RAM_START: VirtAddr = VirtAddr::new(0xffffffffc0000000);
+
 const PHYS_STACK: PhysAddr = PhysAddr(PHYS_PHEAP.as_usize() + PHEAP_LEN);
-const STACK_TOP: VirtAddr = VirtAddr::new(0xffffffffc0000000);
+const STACK_TOP: VirtAddr = VIRT_RAM_START;
 
 #[unsafe(link_section = ".boot.data")]
 static STACK_PT: RawTable = {

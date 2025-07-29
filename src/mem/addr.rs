@@ -1,9 +1,12 @@
 use core::{
-    ops::{Add, Sub},
+    ops::{Add, Range, Sub},
     ptr::NonNull,
 };
 
-pub static mut PHYS_OFFSET: PhysAddr = PhysAddr(0);
+use crate::boot::{PHYS_RAM_START, VIRT_RAM_START};
+
+pub const KERNEL_MEM: Range<usize> =
+    PHYS_RAM_START.as_usize()..(PHYS_RAM_START.as_usize() + 0x40000000);
 
 pub trait Addr: Copy + Eq + Ord {
     fn try_new(addr: usize) -> Option<Self>;
@@ -57,10 +60,6 @@ impl PhysAddr {
         // mask is for first 26 bits
         self.0 >> 30 & 0x3ffffff
     }
-
-    pub fn from_virt(virt: VirtAddr) -> Self {
-        Self(virt.as_usize() - unsafe { PHYS_OFFSET }.as_usize())
-    }
 }
 
 impl From<PhysAddr> for usize {
@@ -111,7 +110,11 @@ impl VirtAddr {
     }
 
     pub fn from_phys(phys: PhysAddr) -> Self {
-        Self(unsafe { PHYS_OFFSET }.as_usize() + phys.as_usize())
+        if KERNEL_MEM.contains(&phys.as_usize()) {
+            Self::new((phys - PHYS_RAM_START) + VIRT_RAM_START.as_usize())
+        } else {
+            panic!("physical address {phys:?} not mapped");
+        }
     }
 
     pub const fn as_usize(self) -> usize {
