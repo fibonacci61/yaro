@@ -1,14 +1,23 @@
 ENTRY(_boot)
 
-__phys_start = 0x82000000;
-__virt_start = 0xffffffffc2000000;
+__phys_ram_start = 0x80000000;
+__virt_ram_start = 0xffffffffc0000000;
+__kernel_offset = 0x2000000;
+
+__phys_start = __phys_ram_start + __kernel_offset;
+__virt_start = __virt_ram_start + __kernel_offset;
 /* gigapage size */
 __ram_len = 1024M;
 
 /* __virt_stack is mapped to __phys_stack */
-__virt_stack = 0xffffffffbfe00000;
-__phys_stack = 0x83000000;
+__pheap_len = 2M;
 __stack_len = 2M;
+
+__virt_stack = __virt_ram_start - __stack_len;
+__virt_pheap = __virt_stack - __pheap_len;
+
+__phys_pheap = 0x83000000;
+__phys_stack = __phys_pheap + __pheap_len;
 
 SECTIONS {
     . = __phys_start;
@@ -20,12 +29,17 @@ SECTIONS {
         *(.boot.data)
     }
 
-    . = __virt_stack;
+    . = __virt_pheap;
 
 	/* Succeeds the kernel in physical memory */
+    .pheap ALIGN(16) (NOLOAD) : AT(__phys_pheap) {
+        . += __pheap_len;
+    }
+
+    . = __virt_stack;
+
 	.stack ALIGN(16) (NOLOAD) : AT(__phys_stack) {
 		. += __stack_len;
-		__stack_top = .;
 	}
 
     /* .boot is still part of our virtual memory */

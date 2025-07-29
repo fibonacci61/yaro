@@ -9,13 +9,17 @@ mod mem;
 mod sbi;
 mod sched;
 
+extern crate alloc;
+
 use core::{arch::naked_asm, panic::PanicInfo};
+
+use talc::Span;
 
 use crate::{
     io::serial::print,
     mem::{
         addr::{PhysAddr, VirtAddr},
-        alloc::BiBuddy,
+        alloc::{BiBuddy, Block, HEAP_ALLOCATOR},
         paging::{
             entry::{Entry, EntryFlags},
             table::{ENTRY_COUNT, RawTable},
@@ -53,7 +57,9 @@ unsafe extern "C" {
 }
 
 const PHYS_RAM_START: PhysAddr = PhysAddr(0x80000000);
-const PHYS_STACK: PhysAddr = PhysAddr(0x83000000);
+const PHYS_PHEAP: PhysAddr = PhysAddr(0x83000000);
+const PHEAP_LEN: usize = 0x200000;
+const PHYS_STACK: PhysAddr = PhysAddr(PHYS_PHEAP.as_usize() + PHEAP_LEN);
 const STACK_TOP: VirtAddr = VirtAddr::new(0xffffffffc0000000);
 
 #[unsafe(link_section = ".boot.data")]
@@ -183,9 +189,30 @@ unsafe extern "C" fn kmain(_hart_id: usize, _dtb_addr: usize) -> ! {
         int::set_kernel_entry();
     }
 
-    let mut _alloc = BiBuddy::new();
-    // TOOD: Find free memory regions from the dtb and add them to the allocator.
-    // Also initialize the kernel heap. A block of order 3 should be enough for now (128 KiB).
+    let mut alloc = BiBuddy::new();
+
+    unsafe {
+        let pheap_block = Block::from_range(PHYS_PHEAP, PHYS_PHEAP + PHEAP_LEN).unwrap();
+        alloc.claim(pheap_block);
+
+        const HEAP_ORDER: usize = 3;
+        let heap_allocation = alloc.alloc(HEAP_ORDER).unwrap();
+        HEAP_ALLOCATOR
+            .lock()
+            .claim(Span::new(
+                heap_allocation.start().as_ptr(),
+                heap_allocation.end().as_ptr(),
+            ))
+            .unwrap();
+    }
+
+    // Kernel heap test
+    let mut vec = alloc::vec::Vec::new();
+    for i in 0..100 {
+        vec.push(i);
+    }
+
+    crate::io::serial::println!("{vec:?}");
 
     shutdown();
 }
