@@ -109,8 +109,9 @@ unsafe extern "C" fn _boot() -> ! {
             "and t1, t1, t2",
             // t1 << 10
             "slli t1, t1, 10",
-            // valid + no perms + non-user + global + accessed + dirty
-            "ori t1, t1, 0xe1",
+            // valid + no perms + non-user + global
+            // NOTE: non-leaf PTEs mustn't have the Dirty or Accessed bits set.
+            "ori t1, t1, 0x21",
 
             // t0[510] = t1
             "li t2, 4080",
