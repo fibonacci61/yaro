@@ -5,11 +5,36 @@ use core::{
 
 pub static mut PHYS_OFFSET: PhysAddr = PhysAddr(0);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub trait Addr: Copy + Eq + Ord {
+    fn try_new(addr: usize) -> Option<Self>;
+    fn as_usize(self) -> usize;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct VirtAddr(usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PhysAddr(pub usize);
+
+impl Addr for VirtAddr {
+    fn try_new(addr: usize) -> Option<Self> {
+        Self::try_new(addr)
+    }
+
+    fn as_usize(self) -> usize {
+        self.0
+    }
+}
+
+impl Addr for PhysAddr {
+    fn try_new(addr: usize) -> Option<Self> {
+        Some(Self(addr))
+    }
+
+    fn as_usize(self) -> usize {
+        self.0
+    }
+}
 
 impl PhysAddr {
     pub const fn as_usize(self) -> usize {

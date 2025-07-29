@@ -26,6 +26,25 @@ impl Entry {
         Self(0)
     }
 
+    pub const fn flags(&self) -> EntryFlags {
+        EntryFlags::from_bits_retain(self.0 & FLAG_BITS)
+    }
+
+    pub const fn ppn(&self) -> usize {
+        self.0 & PPN_BITS >> 10
+    }
+
+    pub const fn valid(&self) -> bool {
+        self.flags().contains(EntryFlags::VALID)
+    }
+
+    pub const fn is_leaf(&self) -> bool {
+        const LEAF_FLAGS: EntryFlags = EntryFlags::READ
+            .union(EntryFlags::WRITE)
+            .union(EntryFlags::EXECUTE);
+        self.flags().intersects(LEAF_FLAGS)
+    }
+
     pub const fn with_flags(self, flags: EntryFlags) -> Self {
         Self(self.0 & !FLAG_BITS | flags.bits())
     }
