@@ -16,7 +16,10 @@ use crate::{
     mem::{
         addr::{PhysAddr, VirtAddr},
         alloc::BiBuddy,
-        paging::table::{ENTRY_COUNT, RawTable},
+        paging::{
+            entry::{Entry, EntryFlags},
+            table::{ENTRY_COUNT, RawTable},
+        },
     },
 };
 
@@ -55,17 +58,30 @@ const STACK_TOP: VirtAddr = VirtAddr::new(0xffffffffc0000000);
 
 #[unsafe(link_section = ".boot.data")]
 static STACK_PT: RawTable = {
-    let mut table = [0; ENTRY_COUNT];
-    // valid + rw + non-user + global + accessed + dirty
-    let pte = (PHYS_STACK.ppn() << 10) | 0xe7;
-    table[511] = pte;
+    let mut table = [Entry::new(); ENTRY_COUNT];
+
+    // bitwise or (|) operator is not const, so this is needed
+    let flags = EntryFlags::VALID
+        .union(EntryFlags::READ)
+        .union(EntryFlags::WRITE)
+        .union(EntryFlags::GLOBAL);
+
+    let entry = Entry::new().with_ppn(PHYS_STACK.ppn()).with_flags(flags);
+
+    table[511] = entry;
     RawTable(table)
 };
 
-const KERNEL_PTE: usize = {
-    // valid + rwx + non-user + global + accessed + dirty
-    let pte = (PHYS_RAM_START.ppn() << 10) | 0xef;
-    pte
+const KERNEL_PTE: Entry = {
+    let flags = EntryFlags::VALID
+        .union(EntryFlags::READ)
+        .union(EntryFlags::WRITE)
+        .union(EntryFlags::EXECUTE)
+        .union(EntryFlags::GLOBAL);
+
+    Entry::new()
+        .with_ppn(PHYS_RAM_START.ppn())
+        .with_flags(flags)
 };
 
 // This is the primary kernel page table.
@@ -77,7 +93,7 @@ const KERNEL_PTE: usize = {
 // We can't add a PTE for STACK_PT at compile time, so that needs to be done at runtime in `_boot`.
 #[unsafe(link_section = ".boot.data")]
 static mut KERNEL_PT: RawTable = {
-    let mut table = [0; ENTRY_COUNT];
+    let mut table = [Entry::new(); ENTRY_COUNT];
 
     // identity map 0x8000000
     table[VirtAddr::new(PHYS_RAM_START.as_usize()).vpn2()] = KERNEL_PTE;
