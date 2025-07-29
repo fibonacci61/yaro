@@ -19,7 +19,10 @@ use talc::Span;
 use crate::{
     boot::{PHEAP_LEN, PHYS_PHEAP},
     io::serial::print,
-    mem::alloc::{Block, HEAP_ALLOCATOR, PAGE_ALLOCATOR},
+    mem::{
+        addr::VirtAddr,
+        alloc::{Block, HEAP_ALLOCATOR, PAGE_ALLOCATOR},
+    },
 };
 
 fn shutdown() -> ! {
@@ -74,14 +77,14 @@ unsafe extern "C" fn kmain(_hart_id: usize, _dtb_addr: usize) -> ! {
         page_alloc.claim(pheap_block);
 
         const HEAP_ORDER: usize = 3;
+
         let heap_allocation = page_alloc.alloc(HEAP_ORDER).unwrap();
-        HEAP_ALLOCATOR
-            .lock()
-            .claim(Span::new(
-                heap_allocation.start().as_ptr(),
-                heap_allocation.end().as_ptr(),
-            ))
-            .unwrap();
+        let span = Span::new(
+            VirtAddr::from_phys(heap_allocation.start()).as_ptr(),
+            VirtAddr::from_phys(heap_allocation.end()).as_ptr(),
+        );
+
+        HEAP_ALLOCATOR.lock().claim(span).unwrap();
     }
 
     // Kernel heap test

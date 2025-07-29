@@ -21,7 +21,8 @@ pub struct BlockHeader {
 
 #[derive(Debug)]
 pub struct Block {
-    header: NonNull<BlockHeader>,
+    // NonZeroUsize used instead of PhysAddr for niche optimization
+    phys_addr: NonZeroUsize,
     order: usize,
 }
 
@@ -46,26 +47,33 @@ fn order_size(order: usize) -> usize {
 
 impl Block {
     pub unsafe fn new(addr: PhysAddr, order: usize) -> Option<Self> {
-        assert!(addr.as_usize() != 0, "block start cannot be null");
         if addr.as_usize() % order_size(order) != 0 {
             return None;
         }
 
-        unsafe { Self::from_virt(VirtAddr::from_phys(addr), order) }
+        let mut this = Self {
+            phys_addr: NonZeroUsize::new(addr.as_usize())?,
+            order,
+        };
+
+        unsafe { this.init() };
+
+        Some(this)
     }
 
-    unsafe fn from_virt(virt: VirtAddr, order: usize) -> Option<Self> {
-        let header = virt
+    fn header_ptr(&self) -> NonNull<BlockHeader> {
+        VirtAddr::from_phys(PhysAddr(self.phys_addr.get()))
             .as_non_null()
-            .expect("block maps to null virtual address");
+            .expect("block physical address translated to null virtual address")
+    }
+
+    unsafe fn init(&mut self) {
         unsafe {
-            header.write(BlockHeader { next: None });
+            self.header_ptr().write(BlockHeader { next: None });
         }
-        Some(Self { header, order })
     }
 
     pub unsafe fn from_range(mut start: PhysAddr, end: PhysAddr) -> Option<Self> {
-        assert!(start.as_usize() != 0, "block start cannot be null");
         start = PhysAddr(start.as_usize().next_multiple_of(PAGE_SIZE));
         if start >= end {
             return None;
@@ -76,8 +84,8 @@ impl Block {
         Some(unsafe { Self::new(start, order) }.unwrap())
     }
 
-    pub fn addr(&self) -> NonZeroUsize {
-        self.header.addr()
+    pub const fn addr(&self) -> NonZeroUsize {
+        self.phys_addr
     }
 
     pub const fn order(&self) -> usize {
@@ -85,7 +93,7 @@ impl Block {
     }
 
     fn header_mut(&mut self) -> &mut BlockHeader {
-        unsafe { self.header.as_mut() }
+        unsafe { self.header_ptr().as_mut() }
     }
 
     pub fn buddy_addr(&self) -> usize {
@@ -109,8 +117,14 @@ impl Block {
         assert!(self.order > 0);
         self.order -= 1;
         let new_size = PAGE_SIZE * (1 << self.order);
-        let right_block_addr = self.addr().get() + new_size;
-        unsafe { Self::from_virt(VirtAddr::new(right_block_addr), self.order) }.unwrap()
+        let right_block_addr = self.phys_addr.get() + new_size;
+
+        let mut right_block = Self {
+            phys_addr: NonZeroUsize::new(right_block_addr).unwrap(),
+            order: self.order(),
+        };
+        unsafe { right_block.init() };
+        right_block
     }
 }
 
@@ -146,7 +160,7 @@ impl FreeList {
             return Some(self.pop().unwrap());
         }
 
-        let mut prev = head.header;
+        let mut prev = head.header_ptr();
         let mut current = head;
         loop {
             current = current.header_mut().next.as_mut()?;
@@ -159,7 +173,7 @@ impl FreeList {
                 };
             }
 
-            prev = current.header;
+            prev = current.header_ptr();
         }
     }
 }
@@ -225,8 +239,8 @@ impl BiBuddy {
 }
 
 impl Allocation {
-    pub fn start(&self) -> VirtAddr {
-        VirtAddr::from_phys(PhysAddr(self.0.header.addr().get()))
+    pub const fn start(&self) -> PhysAddr {
+        PhysAddr(self.0.addr().get())
     }
 
     pub const fn order(&self) -> usize {
@@ -237,7 +251,7 @@ impl Allocation {
         PAGE_SIZE * (1 << self.0.order)
     }
 
-    pub fn end(&self) -> VirtAddr {
-        VirtAddr::from_phys(PhysAddr(self.0.header.addr().get() + self.size()))
+    pub const fn end(&self) -> PhysAddr {
+        PhysAddr(self.0.addr().get() + self.size())
     }
 }
