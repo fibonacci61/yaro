@@ -3,10 +3,11 @@ use core::{
     ptr::NonNull,
 };
 
-use crate::boot::{PHYS_RAM_START, VIRT_RAM_START};
+use crate::boot::{PHEAP_LEN, PHYS_PHEAP, PHYS_RAM_START, VIRT_PHEAP, VIRT_RAM_START};
 
 pub const KERNEL_MEM: Range<usize> =
     PHYS_RAM_START.as_usize()..(PHYS_RAM_START.as_usize() + 0x40000000);
+pub const PHEAP_MEM: Range<usize> = PHYS_PHEAP.as_usize()..(PHYS_PHEAP.as_usize() + PHEAP_LEN);
 
 pub trait Addr: Copy + Eq + Ord {
     fn try_new(addr: usize) -> Option<Self>;
@@ -112,6 +113,8 @@ impl VirtAddr {
     pub fn from_phys(phys: PhysAddr) -> Self {
         if KERNEL_MEM.contains(&phys.as_usize()) {
             Self::new((phys - PHYS_RAM_START) + VIRT_RAM_START.as_usize())
+        } else if PHEAP_MEM.contains(&phys.as_usize()) {
+            Self::new((phys - PHYS_PHEAP) + VIRT_PHEAP.as_usize())
         } else {
             panic!("physical address {phys:?} not mapped");
         }
