@@ -23,7 +23,7 @@ const STACK_LEN: usize = 0x200000;
 const STACK_TOP: VirtAddr = VIRT_RAM_START;
 
 #[unsafe(link_section = ".boot.data")]
-static STACK_PT: RawTable = {
+static DATA_PT: RawTable = {
     let mut table = [Entry::new(); ENTRY_COUNT];
 
     // bitwise or (|) operator is not const, so this is needed
@@ -32,9 +32,12 @@ static STACK_PT: RawTable = {
         .union(EntryFlags::WRITE)
         .union(EntryFlags::GLOBAL);
 
-    let entry = Entry::new().with_ppn(PHYS_STACK.ppn()).with_flags(flags);
+    let pheap_entry = Entry::new().with_ppn(PHYS_PHEAP.ppn()).with_flags(flags);
+    let stack_entry = Entry::new().with_ppn(PHYS_STACK.ppn()).with_flags(flags);
 
-    table[511] = entry;
+    table[510] = pheap_entry;
+    table[511] = stack_entry;
+
     RawTable(table)
 };
 
@@ -56,7 +59,7 @@ const KERNEL_PTE: Entry = {
 // 0x82000000. Also, it's identity mapped, so that a page fault doesn't happen right after enabling
 // paging.
 //
-// We can't add a PTE for STACK_PT at compile time, so that needs to be done at runtime in `_boot`.
+// We can't add a PTE for DATA_PT at compile time, so that needs to be done at runtime in `_boot`.
 #[unsafe(link_section = ".boot.data")]
 static mut KERNEL_PT: RawTable = {
     let mut table = [Entry::new(); ENTRY_COUNT];
@@ -80,8 +83,8 @@ unsafe extern "C" fn _boot() -> ! {
             "la t0, {kpt}",
 
             // t1 is our pte register
-            // t1 = &STACK_PT
-            "la t1, {spt}",
+            // t1 = &DATA_PT
+            "la t1, {dpt}",
 
             // spte = (spt >> 12) & 0xfffffffffff << 10 | 0xe1
             // t1 >> 12
@@ -124,7 +127,7 @@ unsafe extern "C" fn _boot() -> ! {
             "addi t0, t0, %lo({kmain})",
             "jr t0",
             kpt = sym KERNEL_PT,
-            spt = sym STACK_PT,
+            dpt = sym DATA_PT,
             stack_top = const STACK_TOP.as_usize(),
             kmain = sym kmain,
         )
