@@ -111,10 +111,10 @@ impl VirtAddr {
     }
 
     pub fn from_phys(phys: PhysAddr) -> Self {
-        if KERNEL_MEM.contains(&phys.as_usize()) {
-            Self::new((phys - PHYS_RAM_START) + VIRT_RAM_START.as_usize())
-        } else if PHEAP_MEM.contains(&phys.as_usize()) {
+        if PHEAP_MEM.contains(&phys.as_usize()) {
             Self::new((phys - PHYS_PHEAP) + VIRT_PHEAP.as_usize())
+        } else if KERNEL_MEM.contains(&phys.as_usize()) {
+            Self::new((phys - PHYS_RAM_START) + VIRT_RAM_START.as_usize())
         } else {
             panic!("physical address {phys:?} not mapped");
         }
