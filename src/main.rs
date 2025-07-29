@@ -137,14 +137,14 @@ unsafe extern "C" fn _boot() -> ! {
 
             "li sp, {stack_top}",
 
-            // call main
-            "lui t0, %hi({main})",
-            "addi t0, t0, %lo({main})",
+            // call kmain
+            "lui t0, %hi({kmain})",
+            "addi t0, t0, %lo({kmain})",
             "jr t0",
             kpt = sym KERNEL_PT,
             spt = sym STACK_PT,
             stack_top = const STACK_TOP.as_usize(),
-            main = sym main,
+            kmain = sym kmain,
         )
     }
 }
@@ -159,7 +159,7 @@ unsafe fn zero_bss() {
     }
 }
 
-unsafe extern "C" fn main(_hart_id: usize, _dtb_addr: usize) -> ! {
+unsafe extern "C" fn kmain(_hart_id: usize, _dtb_addr: usize) -> ! {
     crate::io::serial::println!("Hello World!");
 
     unsafe {
