@@ -159,9 +159,6 @@ unsafe fn zero_bss() {
     }
 }
 
-// I'm not sure if the registers carrying these parameters got clobbered or not.
-// I remember seeing some weird integers in GDB, but `_boot` doesn't touch the
-// parameter registers a0 and a1.
 unsafe extern "C" fn main(_hart_id: usize, _dtb_addr: usize) -> ! {
     crate::io::serial::println!("Hello World!");
 
